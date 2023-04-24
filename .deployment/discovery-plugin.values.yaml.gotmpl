@@ -1,0 +1,77 @@
+# Global variables
+namespace: {{ requiredEnv "OCP_PROJECT" }}
+service_name: {{ requiredEnv "SERVICE_IMAGE_NAME" }}
+image_tag: {{ requiredEnv "IMAGE_TAG" }}
+
+# This is where environment variables should be added with the exception of secrets (see next bloc)
+# Those values will be automatically imported by the deploymentConfig.yaml file and will become environment variables in the deployed container
+# Keys must be uppercase
+configmap_data: &configmap_data
+  PROJECT_NAME: pubsub_discoverer
+
+{{ if eq .Environment.Name "develop" }}
+hostAliases:
+  - ip: "100.66.158.34"
+    hostnames:
+    - "btln008898.corp.ads"
+  - ip: "100.66.158.35"
+    hostnames:
+    - "btln008899.corp.ads"
+  - ip: "100.66.158.36"
+    hostnames:
+    - "btln008900.corp.ads"
+  - ip: "100.66.158.39"
+    hostnames:
+    - "btln008903.corp.ads"
+  - ip: "172.25.208.114"
+    hostnames:
+    - "abe-kafka-broker-01"
+{{ end }}
+
+# Secrets
+# Those values will be automatically imported by the deploymentConfig.yaml file and will become environment variables in the deployed container
+# Important note: All secrets must be stored in Gitlab variables so they can be hidden properly.
+# Also, ALL values must be base64 encoded before storing them in Gitlab
+# Keys must be uppercase
+{{ if eq .Environment.Name "develop" }}
+secret_data:
+  client.ssl.key: {{ requiredEnv "DISCOVERY_CLIENT_SSL_KEY" }}
+  client.ssl.crt: {{ requiredEnv "DISCOVERY_CLIENT_SSL_CRT" }}
+  CLIENT_SECRET: {{ requiredEnv "CLIENT_SECRET"}}
+{{ end }}
+
+# Below are predefined conditions to override parameters by environment if necessary
+# NOTE: This condition block needs to remain at the bottom of this file
+#
+# The following pattern must be used to override a value in the dictionary
+#
+# configmap_data:
+#  << : *configmap_data
+#  <KEY>: <value>
+#
+{{ if eq .Environment.Name "develop" }}
+configmap_data:
+  << : *configmap_data
+  TINAA_LOG_LEVEL: "DEBUG"
+  SERVICE_PROTOCOL: "https"
+  SERVICE_HOST: "upubsub-backend.develop.ocp01.toll6.tinaa.tlabs.ca"
+  SERVICE_PORT: "443"
+  AUTH_TOKEN_URL: "https://auth.ocp01.toll6.tinaa.tlabs.ca/auth/realms/tinaa/protocol/openid-connect/token"
+  CLIENT_ID: "pltf-develop-pubsub-discoverer"
+
+
+{{ else if eq .Environment.Name "qa" }}
+configmap_data:
+  << : *configmap_data
+  TINAA_LOG_LEVEL: "INFO"
+{{ else if eq .Environment.Name "preprod" }}
+configmap_data:
+  << : *configmap_data
+  TINAA_LOG_LEVEL: "WARNING"
+{{ else if eq .Environment.Name "master" }}
+configmap_data:
+  << : *configmap_data
+  AUTH_AUTHORIZATION_URL: https://auth.tinaa.osc.tac.net/auth/realms/tinaa/protocol/openid-connect/auth
+  AUTH_TOKEN_URL: https://auth.tinaa.osc.tac.net/auth/realms/tinaa/protocol/openid-connect/token
+  TINAA_LOG_LEVEL: "WARNING"
+{{ end }}

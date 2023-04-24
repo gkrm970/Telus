@@ -1,0 +1,244 @@
+
+module discovery-module-internal{
+
+    namespace
+    "https://tinaa.telus.com/yang/discovery-module-internal";
+    prefix discovery-module-internal;
+	
+    //IETF MODULES
+    import ietf-inet-types {
+        prefix inet;
+    }
+	import ietf-yang-types {
+        prefix yang;
+    }
+
+    organization
+    "TELUS";
+    contact
+    "Support: <dlsdnplatformsupportdistributionlist@telus.com>";
+    description
+    "This YANG module has been created for the purpose of the message-bus onboard entity.
+    It defines the model for onboarding a discovery-module-internal to TINAA ecosystem";
+	
+	revision "2023-02-23" {
+        description
+            "Second version of discovery-module-internal data model";
+    }
+
+    container message-buses{
+        list buses{
+			key "id";
+			leaf id {
+                type string;
+                mandatory "true";
+                description
+                "message bus id";
+            }
+			leaf instanceType {
+                type string;
+                mandatory "true";
+                description
+                "message bus type. Example Kafka or RabbitMQ";
+            }
+            leaf host {
+                type string;
+                mandatory "true";
+                description
+                "message bus host name";
+            }
+             leaf port {
+                type inet:port-number;
+                mandatory "true";
+                description
+                "message bus instance port. Example value: 9092";
+            }
+			leaf version {
+                type string {
+                    pattern '[0-9]\.[0-9]\.[0-9]';
+                }
+                mandatory "true";
+                description
+                "message bus instance version. Example value: 3.3";
+            }
+            container authSettings {
+				leaf secProtocol {
+					type enumeration {
+						enum PLAINTEXT;
+						enum SSL;
+						enum SASL_PLAINTEXT;
+						enum SASL_SSL;
+					}
+					mandatory "true";
+					description
+					"message bus instance auth protocol: PlAINTEXT/OAUTHBEARER/SCRAM/GSSAPI/kerberos/SASL/SSL/LDAP/keycloak";
+				}
+				leaf saslMechanism {
+					type enumeration {
+						enum GSSAPI;
+						enum PLAIN;
+						enum SCRAM-SHA-256;
+						enum OAUTHBEARER;
+					}
+				}
+				leaf keystoreLocation {
+					type string;
+				}
+				leaf keystorePassword {
+					type string;
+				}
+				leaf keyPassword {
+					type string;
+				}
+				leaf kerberosServiceName {
+					type string;
+				}
+				leaf principal {
+					type string;
+				}
+				leaf username {
+					type string;
+				}
+				leaf password {
+					type string;
+				}
+				leaf tokenEndpoint {
+					type string;
+				}
+			}
+			leaf createrdby {
+				type string;
+				default "Telus";
+				description
+				"message bus creatred by user";
+			}
+			leaf timestamp {
+				type string;
+				mandatory "false";
+				description
+				"message bus created time";
+			}
+			// output fields 
+			list topics {
+				key "id";
+				leaf id {
+					type string;
+					description
+					"topic id";
+				}
+				leaf topic {
+					type string;
+					description "topic name";
+				}
+				leaf schema {
+					type string;
+					description " schema name";
+				}
+			}
+			container schema-registry {
+			leaf url {
+					type string;
+					mandatory "true";
+					description
+					"schema registry url";
+				}
+				leaf Port {
+					type inet:port-number;
+					mandatory "true";
+					description
+					"message bus instance port. Example value: 9092";
+				}
+				leaf version {
+					type string {
+						pattern '[0-9]\.[0-9]\.[0-9]';
+					}
+					mandatory "true";
+					description
+					"message bus instance version. Example value: 3.3";
+				}
+				  
+			}
+		}	
+        
+    }
+	container schemas-info {
+		list schemas {
+			key "id";
+			leaf id {
+				type string;
+				mandatory "true";
+				description
+				"schema id";
+			}
+			leaf schema {
+				type string;
+				description " schema name";
+			}
+			leaf type {
+				type enumeration {
+					enum AVRO;
+				}
+				mandatory "true";
+				description
+				"type of the schema";
+			}
+			leaf definition {
+				type string;
+				mandatory "true";
+				description
+				"definition of the schema";
+			}
+			leaf revisionId {
+				type string {
+					pattern '[0-9]\.[0-9]\.[0-9]';
+				}
+				mandatory "true";
+				description
+				"Schema revision Id. Example value: 1.0";
+			}
+			 leaf revisionCreateTime {
+				type string;
+				mandatory "false";
+				description
+				"schema revision creation time";
+			}
+		}
+		
+	}
+	
+	container discovery-scheduler{
+			leaf schdeuler {
+				type uint32;
+				mandatory "true";
+				description
+				"ID of the discovery scheduler";
+			}
+			leaf bus_ids {
+				type string;
+				mandatory "true";
+				description
+				"List of bus id's to configure in a interval. Example value: [1,2,3,5]";
+			}
+			leaf status {
+				type string;
+				mandatory "true";
+				description
+				"Discovery schdeuler status. Example value: Active";
+			}
+			leaf frequency {
+				type string {
+					pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+				}
+				mandatory "true";
+				description
+				"Discovery schdeuler frequency. Example value: 14:15:20:05:00:00";
+			}
+			leaf schdeulercreatedtime {
+				type yang:date-and-time;
+				mandatory "false";
+				description
+				"Discovery schdeuler created time";
+			}
+   }
+}
+

@@ -1,0 +1,24 @@
+default_context:
+  project_name: 'pubsub_discoverer'
+  project_slug: 'pubsub_discoverer'
+  domain_main: 'pubsub_discoverer.plt.tinaa.ocp01.osc.tac.net'
+  domain_staging: 'pubsub_discoverer.tinaa.tlabs.ca'
+  docker_swarm_stack_name_main: 'pubsub_discoverer-plt-tinaa-ocp01-osc-tac-net'
+  docker_swarm_stack_name_staging: 'pubsub_discoverer-tinaa-tlabs-ca'
+  secret_key: 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0T0N2UkhNM2pGNVQyZndnMWRLMwpwenVMT3R5eU1ScC9IVHZMZWtSa05jT1V3WndPUnAxaDRZZHZsMkxsNVJpdy9WeVhLd3k0K1I1Y252bGdMeGc5CkpDUDYvSHMxdHY3YnFBTHZmQ3pKb2k0aEhTVHQ2cHptSDFCVVhBc0lTN0dLVmQvZUJiS3EzSStYUnFyYWJiVXkKWGU5UzIyQXFQM2liNlUvNFNtWTNZU3RZOUJaa2RpR01JU2NVM251WkY3dHNmcHQxZjJ2a2Z5UlQvcXJTellWVwpRV0YyMDdTcDhLcXZoR216S3BFM3RYSXJOdm5wSlExeWdmTUgwU0hWZngyRGJIdTY5UThjZnR3b3NjWm93NkFnCjE4SHE2aTRMbEtZKzVmQVdVUjQ1YmhIOU9XTmVTSWtKMXFBeTF3Vm1qWnBiTTZVTmQ4Qm84VktkNCtpTGFOdSsKRVFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+  db_admin_user: 'tinaa@pubsub_discoverer.plt.tinaa.ocp01.osc.tac.net'
+  db_admin_password: 'changethis'
+  backend_cors_origins: '["http://localhost", "http://localhost:4200", "http://localhost:3000", "http://localhost:8080", "https://localhost", "https://localhost:4200", "https://localhost:3000", "https://localhost:8080", "http://dev.pubsub_discoverer.plt.tinaa.ocp01.osc.tac.net", "https://pubsub_discoverer.tinaa.tlabs.ca", "https://pubsub_discoverer.plt.tinaa.ocp01.osc.tac.net"]'
+  postgres_password: 'changethis'
+  
+  traefik_constraint_tag: 'pubsub_discoverer.plt.tinaa.ocp01.osc.tac.net'
+  traefik_constraint_tag_staging: 'pubsub_discoverer.tinaa.tlabs.ca'
+  traefik_public_constraint_tag: 'traefik-public'
+  
+  sentry_dsn: ''
+  docker_image_prefix: 'pubsub_discoverer-'
+  docker_image_backend: 'pubsub_discoverer-backend'
+  _copy_without_render: [
+    backend/app/app/email-templates/**
+  ]
+  _template: ./

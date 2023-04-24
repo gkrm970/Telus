@@ -1,0 +1,3 @@
+openshift:
+  project: pubsub_discoverer
+  image_name: pubsub_discoverer

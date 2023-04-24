@@ -1,0 +1,55 @@
+# Routes
+#
+# DNS documentation:  
+#
+# Certificates documentation: 
+#
+
+# ssl route exemple (edge)
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: {{ .Values.service_name }}-ssl
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.service_name }}
+spec:
+  host: {{ .Values.route }}
+  to:
+    kind: Service
+    name: {{ .Values.service_name }}
+    weight: 100
+  port:
+    targetPort: {{ .Values.outside_pod_port }}-tcp
+  tls:
+    termination: edge
+    # Important: Do not change the indentation of the below values. They need to remain at the beginning of the row.
+    certificate: |-
+{{ .Values.route_certificate | b64dec | indent 6 }}
+    key: |-
+{{ .Values.route_key | b64dec | indent 6 }}
+    caCertificate: |-
+{{ .Values.route_cacertificate | b64dec | indent 6 }}
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+--- 
+
+# # Example of an ssl passthrough route
+# kind: Route
+# apiVersion: route.openshift.io/v1
+# metadata:
+#   name: {{ .Values.service_name }}
+#   namespace: {{ .Values.namespace }}
+#   labels:
+#     app: {{ .Values.service_name }}
+# spec:
+#   host: {{ .Values.route }}
+#   to:
+#     kind: Service
+#     name: {{ .Values.service_name }}
+#     weight: 100
+#   port:
+#     targetPort: 8080-tcp
+#   tls:
+#     termination: passthrough
+#     insecureEdgeTerminationPolicy: None

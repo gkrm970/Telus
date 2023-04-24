@@ -1,0 +1,69 @@
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: {{ .Values.service_name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  strategy:
+    type: Rolling
+    rollingParams:
+      updatePeriodSeconds: 1
+      intervalSeconds: 1
+      timeoutSeconds: 600
+      maxUnavailable: 25%
+      maxSurge: 25%
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - {{ .Values.service_name }}
+        from:
+          kind: ImageStreamTag
+          namespace: {{ .Values.namespace }}
+          name: '{{ .Values.service_name }}:{{ .Values.image_tag }}'
+  replicas: 1
+  selector:
+    app: {{ .Values.service_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.service_name }}
+    spec:
+      volumes:
+        - name: ssl-client-certificates
+          secret:
+            secretName: {{ .Values.service_name }}-secrets
+            items:
+              - key: client.ssl.key
+                path: client.ssl.key
+              - key: client.ssl.crt
+                path: client.ssl.crt
+      containers:
+        # The following resources are specific to your pod requirements
+        - resources: {}
+            # limits:
+            #   cpu: 200m
+            #   memory: 512Mi
+            # requests:
+            #   cpu: 50m
+            #   memory: 256Mi
+          name: {{ .Values.service_name }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.service_name }}-environment-variables
+            - secretRef:
+                name: {{ .Values.service_name }}-secrets
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: ssl-client-certificates
+              mountPath: /opt/
+      hostAliases: {{- .Values.hostAliases | toYaml | nindent 8 }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler

@@ -1,0 +1,18 @@
+# NOTE: Your container must not use well known ports like 80 or 443 since those are blocked by default in the production environment
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.service_name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.service_name }}
+spec:
+  ports:
+    - name: {{ .Values.outside_pod_port }}-tcp
+      protocol: TCP
+      port: {{ .Values.outside_pod_port }}
+      targetPort: {{ .Values.inside_pod_port }}
+  selector:
+    app: {{ .Values.service_name }}
+  type: ClusterIP
+  sessionAffinity: None

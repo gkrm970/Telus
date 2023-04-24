@@ -1,0 +1,13 @@
+environments:
+  develop:
+  qa:
+  preprod:
+  master:
+
+releases:
+  - name: {{ requiredEnv "SERVICE_IMAGE_NAME" }}
+    namespace: {{ requiredEnv "OCP_PROJECT" }}
+    chart: ./backend
+    createNamespace: false
+    values:
+      - ./values.yaml.gotmpl

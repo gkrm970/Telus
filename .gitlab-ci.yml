@@ -1,0 +1,371 @@
+#
+# The following template expects this list of variables to be present in Gitlab
+#   Located in your group or project: Settings--> CI/CD --> Variables
+#
+# When your project is organized in a group in gitlab, place the following at the group level so they are available to all the projects/services
+#
+# PROD_CD_PROD_REG_TOKEN:
+# TOKEN_DEV:
+# TOKEN_QA:
+# TOKEN_PREPROD:
+# DEPLOYER_TOKEN_DEV:
+# DEPLOYER_TOKEN_QA:
+# DEPLOYER_TOKEN_PREPROD:
+#
+
+variables:
+  REGISTRY_SERVER: default-route-openshift-image-registry.apps.tinaaocp01.nfvdev.tlabs.ca
+  OCP_SERVER_LAB: https://api.tinaaocp01.nfvdev.tlabs.ca:6443
+
+  # develop, qa, preprod variables
+  # IMPORTANT: Be carefull about moving those to gitlab variables.  It might break some of the imported deployment pipelines.
+  # This is due to CI/CD variable precedence:
+  #   Ref.: https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
+  PROJECT_NAME: upubsub
+  GROUP: pltf                                  #naaf|pltf|bsaf|etc...
+  SERVICE_IMAGE_NAME: $PROJECT_NAME-discoverer #monitor|portal|api|etc...
+  PROJECT_DEV: $GROUP-develop-$PROJECT_NAME
+  PROJECT_QA: $GROUP-qa-$PROJECT_NAME
+  PROJECT_PREPROD: $GROUP-preprod-$PROJECT_NAME
+  # Prod variables
+  LAB_OC_PROJECT: $PROJECT_PREPROD
+  LAB_OC_IS: $SERVICE_IMAGE_NAME
+  LAB_TAG: master-build
+  OC_TOKEN: $TOKEN_PREPROD
+  PROD_CLUSTER: "TOLL2"
+  PROD_OC_PROJECT: $GROUP-$PROJECT_NAME
+  PROD_OC_IS: $SERVICE_IMAGE_NAME
+  PROD_CD_PROD_REG_USER: builder
+  PIPELINE_ID: $CI_JOB_ID
+
+  # Test image name
+  # Please do not change the naming convention of this image
+  # It has to end with '-test-img-8f012d0d'. It is used for image cleanup in openshift
+  TEST_IMAGE_NAME: $SERVICE_IMAGE_NAME-test-img-8f012d0d
+
+include:
+  - project: "tinaa-platform/deployment/cicd"
+    file: "build-deploy/build.gitlab-ci.yml"
+  - project: 'tinaa-platform/deployment/cicd'
+    file: 'prod-deploy/prod.gitlab-ci.yml'
+  - project: 'tinaa-platform/deployment/cicd'
+    file: 'prod-deploy/prod-tag.gitlab-ci.yml'
+  - project: 'tinaa-platform/scan-cli'
+    ref: v21.07
+    file: 'scan.gitlab-ci.yml'
+
+stages:
+  # - unit_test
+  - infra_deploy
+  - build_deploy
+  - build_prod_image
+  - image_security_scan
+  - prod_deploy
+  - prod_deploy_tag
+  # - e2e_tests
+
+# # Describe this task
+# build_test_image:
+#   stage: unit_test
+#   tags:
+#     - entity-test
+#   variables:
+#     CI_COMMIT_REF_NAME: "develop"
+#   except:
+#     - master
+#   before_script:
+#     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+#     - echo "$TOKEN_DEV" | docker login -u "builder" "$REGISTRY_SERVER" --password-stdin
+#     - docker pull -q $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:latest || true
+#     - docker pull -q $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG || true
+#   script:
+#     - docker build --build-arg=INSTALL_DEV=true
+#         --cache-from $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:latest
+#         --cache-from $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG
+#         -t $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:latest
+#         -t $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG
+#         -f backend/backend.dockerfile
+#         ./backend
+#     - docker push $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:latest
+#     - docker push $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG
+#   after_script:
+#     - docker rmi $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:latest || true
+#     - docker rmi $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG || true
+#     - docker image prune -f
+
+# unit_test:
+#   image: image-registry.openshift-image-registry.svc:5000/plt-gitlab-runners/podman-oc:latest
+#   stage: unit_test
+#   tags:
+#     - toll6-runners
+#   needs: ['build_test_image']
+#   variables:
+#     CI_COMMIT_REF_NAME: "develop"
+#   except:
+#     - master
+#   before_script:
+#     - echo "$TOKEN_DEV" | podman login --username builder --password-stdin $REGISTRY_SERVER
+#   script:
+#     - podman run --rm -it --pull=always
+#         --env-file=.env
+#         $REGISTRY_SERVER/$PROJECT_DEV/$TEST_IMAGE_NAME:$CI_COMMIT_REF_SLUG
+#         sh scripts/test.sh
+
+trigger_infra_deploy_discovery-plugin:
+  image: image-registry.openshift-image-registry.svc:5000/plt-gitlab-runners/podman-oc:latest
+  stage: infra_deploy
+  environment:
+    name: $CI_COMMIT_BRANCH
+  tags:
+    - toll6-runners
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      variables:
+        OCP_PROJECT: $PROJECT_DEV
+        OCP_TOKEN: $DEPLOYER_TOKEN_DEV
+        ROUTE: $SERVICE_IMAGE_NAME.develop.ocp01.toll6.tinaa.tlabs.ca
+        SERVICE_IMAGE_NAME: $PROJECT_NAME-discoverer
+        IMAGE_TAG: develop
+    - if: $CI_COMMIT_BRANCH == "qa"
+      variables:
+        OCP_PROJECT: $PROJECT_QA
+        OCP_TOKEN: $DEPLOYER_TOKEN_QA
+        ROUTE: $SERVICE_IMAGE_NAME.qa.ocp01.toll6.tinaa.tlabs.ca
+        IMAGE_TAG: qa
+    - if: $CI_COMMIT_BRANCH == "preprod"
+      variables:
+        OCP_PROJECT: $PROJECT_PREPROD
+        OCP_TOKEN: $DEPLOYER_TOKEN_PREPROD
+        ROUTE: $SERVICE_IMAGE_NAME.preprod.ocp01.toll6.tinaa.tlabs.ca
+        IMAGE_TAG: preprod
+    - if: $CI_COMMIT_BRANCH == "master"
+      variables:
+        OCP_PROJECT: $PROD_OC_PROJECT
+        ROUTE: $SERVICE_IMAGE_NAME.ocp02.toll2.tinaa.osc.tac.net
+        IMAGE_TAG: master-latest
+  script:
+    - env
+    - cd .deployment
+    - echo "Installing HELM";
+    - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 &&
+        chmod 700 get_helm.sh && VERIFY_CHECKSUM=false ./get_helm.sh &&
+        curl -fsSL -o helmfile_linux_amd64 https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_linux_amd64 &&
+        chmod +x helmfile_linux_amd64;
+    - ./helmfile_linux_amd64 --file ./discovery-plugin.helmfile.yaml --environment $CI_COMMIT_BRANCH template > openshift_config.yaml
+    - if [[ $CI_COMMIT_BRANCH == "develop" ]] || [[ $CI_COMMIT_BRANCH == "qa" ]] || [[ $CI_COMMIT_BRANCH == "preprod" ]];
+      then
+        echo "Logging into Openshift";
+        oc login --token=$OCP_TOKEN --server=$OCP_SERVER_LAB --insecure-skip-tls-verify;
+        oc status;
+        ./helmfile_linux_amd64 --file ./discovery-plugin.helmfile.yaml --environment $CI_COMMIT_BRANCH sync;
+      fi
+  artifacts:
+    name: "openshift config"
+    expire_in: 30 days
+    public: false
+    paths:
+      - .deployment/openshift_config.yaml
+    when: always
+
+trigger_infra_deploy_backend:
+  image: image-registry.openshift-image-registry.svc:5000/plt-gitlab-runners/podman-oc:latest
+  stage: infra_deploy
+  environment:
+    name: $CI_COMMIT_BRANCH
+  tags:
+    - toll6-runners
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      variables:
+        OCP_PROJECT: $PROJECT_DEV
+        OCP_TOKEN: $DEPLOYER_TOKEN_DEV
+        ROUTE: $SERVICE_IMAGE_NAME.develop.ocp01.toll6.tinaa.tlabs.ca
+        SERVICE_IMAGE_NAME: $PROJECT_NAME-backend
+        IMAGE_TAG: develop
+    - if: $CI_COMMIT_BRANCH == "qa"
+      variables:
+        OCP_PROJECT: $PROJECT_QA
+        OCP_TOKEN: $DEPLOYER_TOKEN_QA
+        ROUTE: $SERVICE_IMAGE_NAME.qa.ocp01.toll6.tinaa.tlabs.ca
+        IMAGE_TAG: qa
+    - if: $CI_COMMIT_BRANCH == "preprod"
+      variables:
+        OCP_PROJECT: $PROJECT_PREPROD
+        OCP_TOKEN: $DEPLOYER_TOKEN_PREPROD
+        ROUTE: $SERVICE_IMAGE_NAME.preprod.ocp01.toll6.tinaa.tlabs.ca
+        IMAGE_TAG: preprod
+    - if: $CI_COMMIT_BRANCH == "master"
+      variables:
+        OCP_PROJECT: $PROD_OC_PROJECT
+        ROUTE: $SERVICE_IMAGE_NAME.ocp02.toll2.tinaa.osc.tac.net
+        IMAGE_TAG: master-latest
+  script:
+    - env
+    - cd .deployment
+    - echo "Installing HELM";
+    - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 &&
+        chmod 700 get_helm.sh && VERIFY_CHECKSUM=false ./get_helm.sh &&
+        curl -fsSL -o helmfile_linux_amd64 https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_linux_amd64 &&
+        chmod +x helmfile_linux_amd64;
+    - ./helmfile_linux_amd64 --file ./backend.helmfile.yaml --environment $CI_COMMIT_BRANCH template > openshift_config.yaml
+    - if [[ $CI_COMMIT_BRANCH == "develop" ]] || [[ $CI_COMMIT_BRANCH == "qa" ]] || [[ $CI_COMMIT_BRANCH == "preprod" ]];
+      then
+        echo "Logging into Openshift";
+        oc login --token=$OCP_TOKEN --server=$OCP_SERVER_LAB --insecure-skip-tls-verify;
+        oc status;
+        ./helmfile_linux_amd64 --file ./backend.helmfile.yaml --environment $CI_COMMIT_BRANCH sync;
+      fi
+  artifacts:
+    name: "openshift config"
+    expire_in: 30 days
+    public: false
+    paths:
+      - .deployment/openshift_config.yaml
+    when: always
+
+trigger_build_deploy:
+  stage: build_deploy
+  variables:
+    DOCKERFILE_DIR: ./discovery-plugin
+    BUILD_OPTS: "--build-arg TCSO_ROOT_CA -f discovery-plugin.dockerfile"
+  only:
+    - develop
+    - qa
+    - preprod
+
+trigger_build_deploy_backend:
+  extends: trigger_build_deploy
+  stage: build_deploy
+  variables:
+    SERVICE_IMAGE_NAME: $PROJECT_NAME-backend
+    DOCKERFILE_DIR: ./backend
+    BUILD_OPTS: "-f backend.dockerfile"
+  only:
+    - develop
+    - qa
+    - preprod
+
+# Example to deploy a second image
+# trigger_build_deploy_2:
+#   extends: trigger_build_deploy
+#   stage: build_deploy
+#   variables:
+#     DOCKERFILE_DIR: ./backend
+#     BUILD_OPTS: "--build-arg $ROUTE_CACERTIFICATE -f backend2.dockerfile"
+#   only:
+#     - develop
+#     - qa
+#     - preprod
+#   ## !reference is not always needed depending where your variables have been defined.
+#   ## For good measure, it does not hurt to leave them here so it is more robust
+#   before_script:
+#     - SERVICE_IMAGE_NAME=$PROJECT_NAME-test
+#     - !reference [trigger_build_deploy, before_script]
+#   script:
+#     - SERVICE_IMAGE_NAME=$PROJECT_NAME-test
+#     - !reference [trigger_build_deploy, script]
+
+trigger_build_prod_image:
+  stage: build_prod_image
+  tags:
+    - docker-runner
+  only:
+    - master
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+    - echo "$TOKEN_PREPROD" | docker login -u "builder" "$REGISTRY_SERVER" --password-stdin
+    - docker pull -q $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build || true
+  script:
+    - docker build --build-arg=INSTALL_DEV=true
+        --cache-from $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build
+        -t $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build
+        -f backend/backend.dockerfile
+        ./backend
+    - docker push $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build
+  after_script:
+    - docker rmi $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build || true
+    - docker image prune -f
+
+scan_image:
+  stage: image_security_scan
+  variables:
+    IMAGE_NAME: $REGISTRY_SERVER/$PROJECT_DEV/$SERVICE_IMAGE_NAME:$CI_COMMIT_REF_NAME
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      variables:
+        IMAGE_NAME: $REGISTRY_SERVER/$PROJECT_DEV/$SERVICE_IMAGE_NAME:$CI_COMMIT_REF_NAME
+        PODMAN_TOKEN: $TOKEN_DEV
+    - if: $CI_COMMIT_BRANCH == "qa"
+      variables:
+        IMAGE_NAME: $REGISTRY_SERVER/$PROJECT_QA/$SERVICE_IMAGE_NAME:$CI_COMMIT_REF_NAME
+        PODMAN_TOKEN: $TOKEN_QA
+    - if: $CI_COMMIT_BRANCH == "preprod"
+      variables:
+        IMAGE_NAME: $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:$CI_COMMIT_REF_NAME
+        PODMAN_TOKEN: $TOKEN_PREPROD
+    - if: $CI_COMMIT_BRANCH == "master"
+      variables:
+        IMAGE_NAME: $REGISTRY_SERVER/$PROJECT_PREPROD/$SERVICE_IMAGE_NAME:master-build
+        PODMAN_TOKEN: $TOKEN_PREPROD
+  before_script:
+    - echo "$IMAGE_NAME"
+    - echo "$PODMAN_TOKEN" | podman login --username builder --password-stdin $REGISTRY_SERVER
+
+trigger_prod_deploy:
+  stage: prod_deploy
+  variables:
+    PROD_TAG: master-latest
+  only:
+    refs:
+      - tags
+    variables:
+      - $CI_BUILD_REF_NAME =~ /master-/
+  when: manual
+
+trigger_prod_deploy_tag:
+  stage: prod_deploy_tag
+  variables:
+    PROD_TAG: $CI_BUILD_REF_NAME
+  only:
+    refs:
+      - tags
+    variables:
+      - $CI_BUILD_REF_NAME =~ /master-/
+  when: manual
+
+# e2e_tests:
+#   stage: e2e_tests
+#   etc...
+
+# stage:
+#   # On hold for now
+#   - create_production_release
+#
+# # NOTE: On hold for now
+# create_new_production_release:
+#   stage: create_production_release
+#   image: registry.gitlab.com/gitlab-org/release-cli
+#   tags:
+#     - toll6-runners
+#   only:
+#     - master
+#   before_script:
+#     - apk --update --no-cache add openssl ca-certificates git python3
+#     - mkdir -p /usr/local/share/ca-certificates/extra
+#     - openssl s_client -connect ${CI_SERVER_HOST}:${CI_SERVER_PORT} -servername ${CI_SERVER_HOST} -showcerts </dev/null 2>/dev/null | sed -e '/-----BEGIN/,/-----END/!d' | tee "/usr/local/share/ca-certificates/${CI_SERVER_HOST}.crt" >/dev/null
+#     - update-ca-certificates
+#     - ln -sf python3 /usr/bin/python
+#     - python -m ensurepip
+#     - ln -sf pip3 /usr/bin/pip
+#     - git --version
+#   script:
+#     - python .deployment/generate_release_tag.py
+#     - cat new_tag.env
+#     - source new_tag.env
+#     - echo $NEW_TAG
+#     - >
+#       release-cli create
+#       --name release-branch-$CI_JOB_ID
+#       --description release-branch-$CI_COMMIT_REF_NAME-$CI_JOB_ID
+#       --tag-name $NEW_TAG
+#       --ref $CI_COMMIT_SHA
